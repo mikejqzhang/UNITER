@@ -1,0 +1,13 @@
+#+TITLE: Distillation Projet Notes
+
+* Papers + Links:
+** Repos:
+   - [[https://github.com/ChenRocks/UNITER][UNITER]]
+   - [[https://github.com/airsplay/lxmert][LXMERT]]
+** Papers
+   - [[https://arxiv.org/pdf/1909.11740.pdf][UNITER]]
+   - [[https://arxiv.org/pdf/1908.07490.pdf][LXMERT]]
+   - [[https://arxiv.org/pdf/1802.03494.pdf][AMC]]
+   - [[https://arxiv.org/pdf/1908.09355.pdf][Patient Knowledge Distiallation]]
+   - [[https://openreview.net/pdf?id=SJlPOCEKvH][Compressing Bert (Pruning)]]
+   - [[https://arxiv.org/pdf/2002.11794.pdf][Train Large, Then Compress]]
