@@ -9,7 +9,7 @@
     "model_config": "/src/config/uniter-base.json",
     "model": "paired-attn",
     "use_img_type": true,
-    "output_dir": "/storage/nlvr2/prune_test",
+    "output_dir": "/storage/nlvr2/prune_test2",
     "max_txt_len": 60,
     "conf_th": 0.2,
     "max_bb": 100,
@@ -19,7 +19,7 @@
     "val_batch_size": 10240,
     "gradient_accumulation_steps": 1,
     "learning_rate": 3e-05,
-    "valid_steps": 100,
+    "valid_steps": 250,
     "num_train_steps": 8000,
     "optim": "adamw",
     "betas": [
@@ -42,6 +42,7 @@
     "prune_nlvr2": true,
     "prune_rate": 0.15,
     "prune_target": 0.30,
-    "prune_threshold": 0.0,
+    "prune_threshold": 0.763,
     "force_output": true
 }
+

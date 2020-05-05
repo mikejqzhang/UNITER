@@ -17,7 +17,6 @@ from apex.normalization.fused_layer_norm import FusedLayerNorm
 
 from .layer import BertLayer, BertPooler
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -359,3 +358,38 @@ class UniterModel(UniterPreTrainedModel):
         if not output_all_encoded_layers:
             encoded_layers = encoded_layers[-1]
         return encoded_layers
+
+    def get_params_to_prune(self, txt_embeddings=False, img_embeddings=False,
+                            encoder=False, pooler=False):
+        params_to_prune = []
+        if txt_embeddings:
+            params_to_prune.extend([
+                (self.embeddings.word_embeddings, 'weight'),
+                (self.embeddings.position_embeddings, 'weight'),
+                (self.embeddings.token_type_embeddings, 'weight'),
+                (self.embeddings.LayerNorm, 'weight')
+                ])
+        if img_embeddings:
+            params_to_prune.extend([
+                (self.img_embeddings.img_linear, 'weight'),
+                (self.img_embeddings.img_layer_norm, 'weight'),
+                (self.img_embeddings.pos_layer_norm, 'weight'),
+                (self.img_embeddings.pos_linear, 'weight'),
+                (self.img_embeddings.LayerNorm, 'weight')
+                ])
+        if encoder:
+            for layer in self.encoder.layer:
+                params_to_prune.extend([
+                    (layer.attention.self.query, 'weight'),
+                    (layer.attention.self.key, 'weight'),
+                    (layer.attention.self.value, 'weight'),
+                    (layer.attention.output.dense, 'weight'),
+                    (layer.attention.output.LayerNorm, 'weight'),
+                    (layer.intermediate.dense, 'weight'),
+                    (layer.output.dense, 'weight'),
+                    (layer.output.LayerNorm, 'weight')
+                    ])
+        if pooler:
+            params_to_prune.append((self.pooler.dense, 'weight'))
+
+        return params_to_prune

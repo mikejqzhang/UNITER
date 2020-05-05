@@ -130,7 +130,7 @@ def main(opts):
         TB_LOGGER.create(join(opts.output_dir, 'log'))
         pbar = tqdm(total=opts.num_train_steps)
         model_saver = ModelSaver(join(opts.output_dir, 'ckpt'))
-        os.makedirs(join(opts.output_dir, 'results'))  # store val predictions
+        os.makedirs(join(opts.output_dir, 'results'), exist_ok=True)  # store val predictions
         add_log_to_file(join(opts.output_dir, 'log', 'log.txt'))
     else:
         LOGGER.disabled = True
@@ -143,6 +143,34 @@ def main(opts):
     LOGGER.info("  Accumulate steps = %d", opts.gradient_accumulation_steps)
     LOGGER.info("  Num steps = %d", opts.num_train_steps)
 
+    # ==========================================================================
+    # Pruning Stuff
+    if opts.use_pruning:
+        pruned_this_epoch = False
+        cur_sparsity = 0.0
+        val_acc = None
+        LOGGER.info("===== Pruning Info: =====")
+        LOGGER.info("  Prune Rate: %f", opts.prune_rate)
+        LOGGER.info("  Prune Target: %f", opts.prune_target)
+        LOGGER.info("  Prune Threshold: %f", opts.prune_threshold)
+        LOGGER.info("  Prune txt_embeddings: %s", opts.prune_txt_embeddings)
+        LOGGER.info("  Prune img_embeddings: %s", opts.prune_img_embeddings)
+        LOGGER.info("  Prune encoder: %s", opts.prune_encoder)
+        LOGGER.info("  Prune pooler: %s", opts.prune_pooler)
+        LOGGER.info("  Prune nlvr2: %s", opts.prune_nlvr2)
+        model.prune(opts.prune_rate,
+                    nlvr2=True,
+                    txt_embeddings=False,
+                    img_embeddings=False,
+                    encoder=False,
+                    pooler=False)
+        LOGGER.info("***** PRUNING STEP *****")
+        LOGGER.info(f"Valid / Threshold Accuracy: "
+                    f"{val_acc} / {opts.prune_threshold}")
+        LOGGER.info(f"Current / Target Sparsity: "
+                    f"{cur_sparsity} / {opts.prune_target}")
+    # ==========================================================================
+
     running_loss = RunningMeter('loss')
     model.train()
     n_examples = 0
@@ -151,6 +179,7 @@ def main(opts):
     # quick hack for amp delay_unscale bug
     optimizer.zero_grad()
     optimizer.step()
+    print(1111)
     while True:
         for step, batch in enumerate(train_dataloader):
             targets = batch['targets']
@@ -159,9 +188,12 @@ def main(opts):
             loss = model(**batch, compute_loss=True)
             loss = loss.mean()
             delay_unscale = (step+1) % opts.gradient_accumulation_steps != 0
+            print(22222)
             with amp.scale_loss(loss, optimizer, delay_unscale=delay_unscale
                                 ) as scaled_loss:
+                print(33333)
                 scaled_loss.backward()
+                print(4444)
                 if not delay_unscale:
                     # gather gradients from every processes
                     # do this before unscaling to make sure every process uses
@@ -219,6 +251,24 @@ def main(opts):
                             for id_, ans in results:
                                 f.write(f'{id_},{ans}\n')
                         TB_LOGGER.log_scaler_dict(log)
+                        if split == 'val':  # Pruning Stuff
+                            val_acc = log[f'valid/{split}_acc']
+                    if opts.use_pruning and cur_sparsity < opts.prune_target \
+                            and val_acc > opts.prune_threshold:
+                        import pdb; pdb.set_trace()
+                        model.prune(opts.prune_rate,
+                                    nlvr2=opts.prune_nlvr2,
+                                    txt_embeddings=opts.prune_txt_embeddings,
+                                    img_embeddings=opts.prune_img_embeddings,
+                                    encoder=opts.prune_encoder,
+                                    pooler=opts.prune_pooler)
+                        cur_sparsity += opts.prune_rate
+                        pruned_this_epoch = True
+                        LOGGER.info("***** PRUNING STEP *****")
+                        LOGGER.info(f"Valid / Threshold Accuracy: "
+                                    f"{val_acc} / {opts.prune_threshold}")
+                        LOGGER.info(f"Current / Target Sparsity: "
+                                    f"{cur_sparsity} / {opts.prune_target}")
                     model_saver.save(model, global_step)
             if global_step >= opts.num_train_steps:
                 break
@@ -226,6 +276,22 @@ def main(opts):
             break
         n_epoch += 1
         LOGGER.info(f"Step {global_step}: finished {n_epoch} epochs")
+        # if opts.use_pruning:
+        #     if not pruned_this_epoch:
+        #         model.prune(opts.prune_rate,
+        #                     nlvr2=opts.prune_nlvr2,
+        #                     txt_embeddings=opts.prune_txt_embeddings,
+        #                     img_embeddings=opts.prune_img_embeddings,
+        #                     encoder=opts.prune_encoder,
+        #                     pooler=opts.prune_pooler)
+        #         cur_sparsity += opts.prune_rate
+        #         LOGGER.info("***** PRUNING STEP *****")
+        #         LOGGER.info(f"Valid / Threshold Accuracy: "
+        #                     f"{val_acc} / {opts.prune_threshold}")
+        #         LOGGER.info(f"Current / Target Sparsity: "
+        #                     f"{cur_sparsity} / {opts.prune_target}")
+        #     pruned_this_epoch = False
+
     for split, loader in [('val', val_dataloader), ('test', test_dataloader)]:
         LOGGER.info(f"Step {global_step}: start running "
                     f"validation on {split} split...")
@@ -397,9 +463,36 @@ if __name__ == "__main__":
     # can use config files
     parser.add_argument('--config', help='JSON config files')
 
+    # ==========================================================================
+    # Pruning Stuff
+    parser.add_argument("--use_pruning", action='store_true',
+                        help="whether to prune")
+
+    parser.add_argument("--prune_txt_embeddings", action='store_true',
+                        help="whether to prune txt_embeddings")
+    parser.add_argument("--prune_img_embeddings", action='store_true',
+                        help="whether to prune img_embeddings")
+    parser.add_argument("--prune_encoder", action='store_true',
+                        help="whether to prune encoder")
+    parser.add_argument("--prune_pooler", action='store_true',
+                        help="whether to prune pooler")
+    parser.add_argument("--prune_nlvr2", action='store_true',
+                        help="whether to prune nlvr2")
+
+    parser.add_argument("--prune_rate", type=float, default=0.15,
+                        help="ammount to prune at each iteration")
+    parser.add_argument("--prune_target", type=float, default=0.30,
+                        help="target end sparsity of the model")
+    parser.add_argument("--prune_threshold", type=float, default=0.0,
+                        help="percent of full_model_val_acc to start pruning")
+
+    parser.add_argument("--force_output", action='store_true',
+                        help="whether to force overwrite the output dir")
+    # ==========================================================================
+
     args = parse_with_config(parser)
 
-    if exists(args.output_dir) and os.listdir(args.output_dir):
+    if not args.force_output and (exists(args.output_dir) and os.listdir(args.output_dir)):
         raise ValueError("Output directory ({}) already exists and is not "
                          "empty.".format(args.output_dir))
 
