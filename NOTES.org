@@ -1,5 +1,16 @@
 #+TITLE: Distillation Projet Notes
 
+* Results:
+  |----------------+--------------------+---------------------+--------------------+---------------------|
+  | Model          |       Dev Accuracy |      Dev Consitency |      Test Accuracy |     Test Consitency |
+  |----------------+--------------------+---------------------+--------------------+---------------------|
+  | Full Finetuned | 0.7709825264967058 | 0.44697720515361744 | 0.7788144107937419 | 0.46466165413533833 |
+  |----------------+--------------------+---------------------+--------------------+---------------------|
+
+* Experiments:
+** Pruning:
+*** Pruning threshold: 99.5% of full model dev accuracy (0.76712761386)
+
 * Papers + Links:
 ** Repos:
    - [[https://github.com/ChenRocks/UNITER][UNITER]]
@@ -11,3 +22,21 @@
    - [[https://arxiv.org/pdf/1908.09355.pdf][Patient Knowledge Distiallation]]
    - [[https://openreview.net/pdf?id=SJlPOCEKvH][Compressing Bert (Pruning)]]
    - [[https://arxiv.org/pdf/2002.11794.pdf][Train Large, Then Compress]]
+
+
+* Presentation May 7, 2020
+** Introduction ~ 1 min
+   - I'm Michael Zhang. I started almost a month ago as a part-time intern.
+   - I'm currently also a student at the University of Washington where I work with Noah A. Smith.
+   - I will be starting my Ph.D. in NLP at UT Austin this Fall, working with Eunsol Choi.
+** Project Setup
+   - With the success of self-supervised pretraining for NLP tasks, there has been interest in extending
+     these methods to multimodal settings (Text + Vision)
+   - Examples of such work include LxMERT and UNITER from this group
+** Goals:
+*** 
+     1) Iterative Pruning
+     2) Quantization
+     3) Knowledge Distillation
+     4) Automatic Model Compression
+** Internship Goals
