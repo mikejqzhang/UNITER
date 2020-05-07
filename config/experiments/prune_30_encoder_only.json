@@ -9,7 +9,7 @@
     "model_config": "/src/config/uniter-base.json",
     "model": "paired-attn",
     "use_img_type": true,
-    "output_dir": "/storage/nlvr2/prune_test",
+    "output_dir": "/storage/nlvr2/prune_30_encoder_only",
     "max_txt_len": 60,
     "conf_th": 0.2,
     "max_bb": 100,

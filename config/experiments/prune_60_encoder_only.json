@@ -9,7 +9,7 @@
     "model_config": "/src/config/uniter-base.json",
     "model": "paired-attn",
     "use_img_type": true,
-    "output_dir": "/storage/nlvr2/prune_test",
+    "output_dir": "/storage/nlvr2/prune_60_encoder_only",
     "max_txt_len": 60,
     "conf_th": 0.2,
     "max_bb": 100,
@@ -41,7 +41,7 @@
     "prune_pooler": false,
     "prune_nlvr2": false,
     "prune_rate": 0.15,
-    "prune_target": 0.30,
+    "prune_target": 0.60,
     "prune_threshold": 0.75,
     "force_output": true
 }

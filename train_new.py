@@ -65,7 +65,7 @@ def main(opts):
     #             "16-bits training: {}".format(
     #                 device, n_gpu, hvd.rank(), opts.fp16))
 
-    device = 'cpu'
+    device = f'gpu:opts.device' if device else 'cpu'
 
     if opts.gradient_accumulation_steps < 1:
         raise ValueError("Invalid gradient_accumulation_steps parameter: {}, "
@@ -483,6 +483,9 @@ if __name__ == "__main__":
 
     parser.add_argument("--force_output", action='store_true',
                         help="whether to force overwrite the output dir")
+
+    parser.add_argument("--device", type=str, default=None,
+                        help="which gpu to use, null=cpu")
     # ==========================================================================
 
     args = parse_with_config(parser)

@@ -11,7 +11,9 @@ from torch.nn import functional as F
 from .model import UniterPreTrainedModel, UniterModel
 from .attention import MultiheadAttention
 
-from torch.nn.utils import prune
+# from torch.nn.utils import prune
+# from utils import prune
+from utils.new_prune import Pruner
 
 class UniterForNlvr2Paired(UniterPreTrainedModel):
     """ Finetune UNITER for NLVR2 (paired format)
@@ -180,7 +182,7 @@ class UniterForNlvr2PairedAttn(UniterPreTrainedModel):
         else:
             return answer_scores
 
-    def prune(self, amount, nlvr2=False, **kwargs):
+    def get_params_to_prune(self, nlvr2=False, **kwargs):
         params_to_prune = self.uniter.get_params_to_prune(**kwargs)
         if nlvr2:
             params_to_prune.extend([
@@ -192,8 +194,4 @@ class UniterForNlvr2PairedAttn(UniterPreTrainedModel):
                 (self.attn_pool.fc[0], 'weight'),
                 (self.nlvr2_output, 'weight')
                     ])
-    
-        prune.global_unstructured(params_to_prune,
-                                  pruning_method=prune.L1Unstructured,
-                                  amount=amount)
-
+        return params_to_prune

@@ -37,6 +37,7 @@ from utils.save import ModelSaver, save_training_meta
 from utils.misc import NoOp, parse_with_config, set_dropout, set_random_seed
 from utils.const import IMG_DIM, BUCKET_SIZE
 
+from utils.new_prune import Pruner
 
 def create_dataloader(img_path, txt_path, batch_size, is_train,
                       dset_cls, collate_fn, opts):
@@ -147,6 +148,7 @@ def main(opts):
     # Pruning Stuff
     if opts.use_pruning:
         pruned_this_epoch = False
+        prune_next_step = False
         cur_sparsity = 0.0
         val_acc = None
         LOGGER.info("===== Pruning Info: =====")
@@ -158,12 +160,15 @@ def main(opts):
         LOGGER.info("  Prune encoder: %s", opts.prune_encoder)
         LOGGER.info("  Prune pooler: %s", opts.prune_pooler)
         LOGGER.info("  Prune nlvr2: %s", opts.prune_nlvr2)
-        model.prune(opts.prune_rate,
-                    nlvr2=True,
-                    txt_embeddings=False,
-                    img_embeddings=False,
-                    encoder=False,
-                    pooler=False)
+        model_pruner = Pruner(
+                model.get_params_to_prune(
+                    nlvr2=opts.prune_nlvr2,
+                    txt_embeddings=opts.prune_txt_embeddings,
+                    img_embeddings=opts.prune_img_embeddings,
+                    encoder=opts.prune_encoder,
+                    pooler=opts.prune_pooler)
+                )
+        optimizer.zero_grad()
         LOGGER.info("***** PRUNING STEP *****")
         LOGGER.info(f"Valid / Threshold Accuracy: "
                     f"{val_acc} / {opts.prune_threshold}")
@@ -179,7 +184,6 @@ def main(opts):
     # quick hack for amp delay_unscale bug
     optimizer.zero_grad()
     optimizer.step()
-    print(1111)
     while True:
         for step, batch in enumerate(train_dataloader):
             targets = batch['targets']
@@ -188,12 +192,10 @@ def main(opts):
             loss = model(**batch, compute_loss=True)
             loss = loss.mean()
             delay_unscale = (step+1) % opts.gradient_accumulation_steps != 0
-            print(22222)
             with amp.scale_loss(loss, optimizer, delay_unscale=delay_unscale
                                 ) as scaled_loss:
-                print(33333)
                 scaled_loss.backward()
-                print(4444)
+
                 if not delay_unscale:
                     # gather gradients from every processes
                     # do this before unscaling to make sure every process uses
@@ -253,44 +255,42 @@ def main(opts):
                         TB_LOGGER.log_scaler_dict(log)
                         if split == 'val':  # Pruning Stuff
                             val_acc = log[f'valid/{split}_acc']
-                    if opts.use_pruning and cur_sparsity < opts.prune_target \
-                            and val_acc > opts.prune_threshold:
-                        import pdb; pdb.set_trace()
-                        model.prune(opts.prune_rate,
-                                    nlvr2=opts.prune_nlvr2,
-                                    txt_embeddings=opts.prune_txt_embeddings,
-                                    img_embeddings=opts.prune_img_embeddings,
-                                    encoder=opts.prune_encoder,
-                                    pooler=opts.prune_pooler)
+                    if (opts.use_pruning and
+                            cur_sparsity < opts.prune_target and
+                            val_acc > opts.prune_threshold):
                         cur_sparsity += opts.prune_rate
+                        prune_next_step = False
                         pruned_this_epoch = True
                         LOGGER.info("***** PRUNING STEP *****")
+                        LOGGER.info("VALID THRESHOLD REACHED")
                         LOGGER.info(f"Valid / Threshold Accuracy: "
                                     f"{val_acc} / {opts.prune_threshold}")
                         LOGGER.info(f"Current / Target Sparsity: "
                                     f"{cur_sparsity} / {opts.prune_target}")
-                    model_saver.save(model, global_step)
+                    elif (opts.use_pruning and
+                            prune_next_step):
+                        cur_sparsity += opts.prune_rate
+                        prune_next_step = False
+                        pruned_this_epoch = True
+                        LOGGER.info("***** PRUNING STEP *****")
+                        LOGGER.info("TIME THRESHOLD REACHED")
+                        LOGGER.info(f"Valid / Threshold Accuracy: "
+                                    f"{val_acc} / {opts.prune_threshold}")
+                        LOGGER.info(f"Current / Target Sparsity: "
+                                    f"{cur_sparsity} / {opts.prune_target}")
+                        LOGGER.info("THRESHOLD REACHED")
+                if opts.use_pruning:
+                    model_pruner.prune(cur_sparsity)
             if global_step >= opts.num_train_steps:
                 break
         if global_step >= opts.num_train_steps:
             break
         n_epoch += 1
+        if not pruned_this_epoch:
+            prune_next_step = True
+        pruned_this_epoch = False
+
         LOGGER.info(f"Step {global_step}: finished {n_epoch} epochs")
-        # if opts.use_pruning:
-        #     if not pruned_this_epoch:
-        #         model.prune(opts.prune_rate,
-        #                     nlvr2=opts.prune_nlvr2,
-        #                     txt_embeddings=opts.prune_txt_embeddings,
-        #                     img_embeddings=opts.prune_img_embeddings,
-        #                     encoder=opts.prune_encoder,
-        #                     pooler=opts.prune_pooler)
-        #         cur_sparsity += opts.prune_rate
-        #         LOGGER.info("***** PRUNING STEP *****")
-        #         LOGGER.info(f"Valid / Threshold Accuracy: "
-        #                     f"{val_acc} / {opts.prune_threshold}")
-        #         LOGGER.info(f"Current / Target Sparsity: "
-        #                     f"{cur_sparsity} / {opts.prune_target}")
-        #     pruned_this_epoch = False
 
     for split, loader in [('val', val_dataloader), ('test', test_dataloader)]:
         LOGGER.info(f"Step {global_step}: start running "
